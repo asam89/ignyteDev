@@ -1,0 +1,11 @@
+services:
+  dev-node:
+    build: .
+    container_name: ignyte-dev-node
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./repo:/repo  # Mount the target repo here
+    environment:
+      - REPO_PATH=/repo
+      - TARGET_ENV=dev
