@@ -6,6 +6,10 @@ services:
     env_file: .env
     volumes:
       - ./repo:/repo  # Mount the target repo here
+      - ./data:/app/data # Mount bot's data directory
+      # - /path/on/host/to/your/ObsidianVault:/obsidian_vault # Uncomment and adjust for Obsidian integration
     environment:
       - REPO_PATH=/repo
       - TARGET_ENV=dev
+      - BOT_DATA_DIR=/app/data
+      # - OBSIDIAN_VAULT_PATH=/obsidian_vault # Uncomment for Obsidian
