@@ -5,3 +5,4 @@ flake8
 pytest
 APScheduler>=3.10.4 # For scheduling reminders
 tinydb>=4.8.0 # For simple project and reminder persistence
+tweepy>=4.14.0 # For X (Twitter) integration
