@@ -3,3 +3,5 @@ python-telegram-bot==21.7
 google-generativeai>=0.8.0
 flake8
 pytest
+APScheduler>=3.10.4 # For scheduling reminders
+tinydb>=4.8.0 # For simple project and reminder persistence
