@@ -17,10 +17,13 @@ from bot.core.task_processor import TaskProcessor
 from bot.core.project_manager import ProjectManager
 from bot.core.reminder_manager import ReminderManager
 from bot.core.obsidian_manager import ObsidianManager
+from bot.core.social_media_manager import SocialMediaManager # New import
+
 from bot.handlers.task_handlers import task_command
 from bot.handlers.project_handlers import project_command
 from bot.handlers.reminder_handlers import remind_command
-from bot.handlers.common import auth_check, restricted_access # Import for main application setup
+from bot.handlers.social_media_handlers import social_command # New import
+from bot.handlers.common import auth_check, restricted_access, start # Import start
 
 # ── Config ──────────────────────────────────────────────
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
@@ -30,6 +33,8 @@ ALLOWED_USER_IDS = [int(uid) for uid in os.environ.get("ALLOWED_USER_IDS", "").s
 REPO_PATH = os.environ.get("REPO_PATH", "/repo")
 TARGET_ENVIRONMENT = os.environ.get("TARGET_ENV", "dev")  # "dev" or "prod"
 OBSIDIAN_VAULT_PATH = os.environ.get("OBSIDIAN_VAULT_PATH", "/obsidian_vault") # New config for Obsidian
+X_API_KEY = os.environ.get("X_API_KEY") # New config for X/Twitter
+X_API_SECRET = os.environ.get("X_API_SECRET") # New config for X/Twitter
 
 # Data directory for managers (TinyDB, etc.)
 DATA_DIR = Path(os.environ.get("BOT_DATA_DIR", "/app/data"))
@@ -55,6 +60,7 @@ async def post_init(application: Application):
     # Pass application instance for ReminderManager to send messages
     application.bot_data["reminder_manager"] = ReminderManager(DATA_DIR, application) 
     application.bot_data["obsidian_manager"] = ObsidianManager(OBSIDIAN_VAULT_PATH)
+    application.bot_data["social_media_manager"] = SocialMediaManager(DATA_DIR, X_API_KEY, X_API_SECRET) # Initialize social media manager
     
     log.info("All managers initialized and stored in bot_data.")
 
@@ -73,68 +79,18 @@ def main() -> None:
 
     # Register handlers
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
-    
-    # Register /task handler
     application.add_handler(CommandHandler("task", task_command))
-
-    # Register new handlers for project, reminder, obsidian
     application.add_handler(CommandHandler("project", project_command))
     application.add_handler(CommandHandler("remind", remind_command))
-    # application.add_handler(CommandHandler("obsidian", obsidian_command)) # To be added later
+    application.add_handler(CommandHandler("social", social_command)) # New social media command handler
 
-    # Handle all other messages (optional)
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
-
-    log.info("Bot is polling...")
+    # Add a catch-all for unauthorized users *only if* ALLOWED_USER_IDS is configured
+    if ALLOWED_USER_IDS:
+        unauthorized_filter = filters.COMMAND & ~filters.User(user_id=ALLOWED_USER_IDS)
+        application.add_handler(MessageHandler(unauthorized_filter, restricted_access))
+        log.info("Restricted access handler registered for unauthorized users.")
+    else:
+        log.info("ALLOWED_USER_IDS is empty. Bot accessible to all users.")
+    
+    log.info("All command handlers registered. Polling for updates...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
-
-
-# ── Basic Telegram Commands (kept here for simplicity) ────────────────────────────────
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a message when the command /start is issued."""
-    user = update.effective_user
-    if not auth_check(user.id):
-        await restricted_access(update, context)
-        return
-
-    await update.message.reply_html(
-        f"Hi {user.mention_html()}! I'm your autonomous development bot. "
-        "Send me a `/task` to generate code and open a PR.",
-    )
-    log.info(f"User {user.id} started the bot.")
-
-
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a message when the command /help is issued."""
-    user = update.effective_user
-    if not auth_check(user.id):
-        await restricted_access(update, context)
-        return
-
-    help_text = """
-I'm IgnyteDev, your autonomous development bot! Here's what I can do:
-
-*   `/task <description>`: Describe a coding task, and I'll generate the code, push a branch, and open a PR.
-*   `/project <action> [args]`: Manage projects (e.g., `create`, `list`, `get`).
-*   `/remind YYYY-MM-DD HH:MM <message>`: Set a reminder message.
-*   `/start`: Start interacting with the bot.
-*   `/help`: Show this help message.
-"""
-    await update.message.reply_text(help_text)
-    log.info(f"User {user.id} requested help.")
-
-
-async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Echo the user message."""
-    user = update.effective_user
-    if not auth_check(user.id):
-        await restricted_access(update, context)
-        return
-        
-    await update.message.reply_text(update.message.text)
-
-
-if __name__ == "__main__":
-    main()
