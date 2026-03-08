@@ -68,9 +68,7 @@ class ReminderManager:
         try:
             await self.bot_app_context.bot.send_message(chat_id=chat_id, text=f"🔔 Reminder: {message}")
             self.db.update({"status": "sent"}, doc_ids=[doc_id])
-            log.info(f"Reminder {doc_id} sent successfully.")
+            log.info(f"Reminder sent and status updated for doc_id {doc_id}.")
         except Exception as e:
-            log.error(f"Failed to send reminder {doc_id} to chat {chat_id}: {e}")
-            self.db.update({"status": "failed", "error": str(e)}, doc_ids=[doc_id])
-
-    # More methods (list, cancel, etc.) will go here
+            log.error(f"Failed to send reminder for doc_id {doc_id} to chat {chat_id}: {e}")
+            self.db.update({"status": "failed"}, doc_ids=[doc_id])

@@ -29,7 +29,7 @@ TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 ALLOWED_USER_IDS = [int(uid) for uid in os.environ.get("ALLOWED_USER_IDS", "").split(",") if uid]
 REPO_PATH = os.environ.get("REPO_PATH", "/repo")
 TARGET_ENVIRONMENT = os.environ.get("TARGET_ENV", "dev")  # "dev" or "prod"
-OBSIDIAN_VAULT_PATH = os.environ.get("OBSIDIAN_VAULT_PATH", "/obsidian_vault") # New config for Obsidian
+OBSIDIAN_VAULT_PATH = os.environ.get("OBSIDIAN_VAULT_PATH") # New config for Obsidian
 
 # Data directory for managers (TinyDB, etc.)
 DATA_DIR = Path(os.environ.get("BOT_DATA_DIR", "/app/data"))
@@ -44,9 +44,26 @@ log = logging.getLogger(__name__)
 
 # ── Main ────────────────────────────────────────────────
 
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send a message when the command /start is issued."""
+    user_id = update.effective_user.id
+    if not auth_check(user_id):
+        await restricted_access(update, context)
+        return
+    user = update.effective_user
+    await update.message.reply_html(
+        f"Hi {user.mention_html()}! I'm IgnyteDev, your autonomous development bot.\n\n"
+        "You can assign me tasks, manage projects, and set reminders.\n"
+        "Use /task <description> to assign a development task.\n"
+        "Use /project <action> to manage projects.\n"
+        "Use /remind YYYY-MM-DD HH:MM <message> to set a reminder."
+    )
+    log.info(f"User {user.id} ({user.username}) started the bot.")
+
 async def post_init(application: Application):
     """Callback function to run after the bot has started."""
     log.info("Bot application started.")
+    log.info(f"Configured ALLOWED_USER_IDS: {ALLOWED_USER_IDS}")
 
     # Initialize managers and store them in bot_data
     # This makes them accessible from handlers via context.application.bot_data
@@ -54,7 +71,19 @@ async def post_init(application: Application):
     application.bot_data["project_manager"] = ProjectManager(DATA_DIR)
     # Pass application instance for ReminderManager to send messages
     application.bot_data["reminder_manager"] = ReminderManager(DATA_DIR, application) 
-    application.bot_data["obsidian_manager"] = ObsidianManager(OBSIDIAN_VAULT_PATH)
+    
+    # Initialize ObsidianManager conditionally
+    if OBSIDIAN_VAULT_PATH:
+        obsidian_vault_path_obj = Path(OBSIDIAN_VAULT_PATH)
+        if obsidian_vault_path_obj.is_dir():
+            application.bot_data["obsidian_manager"] = ObsidianManager(OBSIDIAN_VAULT_PATH)
+            log.info(f"ObsidianManager initialized with vault path: {OBSIDIAN_VAULT_PATH}")
+        else:
+            log.warning(f"OBSIDIAN_VAULT_PATH '{OBSIDIAN_VAULT_PATH}' provided but does not exist or is not a directory. Obsidian integration disabled.")
+            application.bot_data["obsidian_manager"] = None
+    else:
+        log.info("OBSIDIAN_VAULT_PATH not provided. Obsidian integration disabled.")
+        application.bot_data["obsidian_manager"] = None
     
     log.info("All managers initialized and stored in bot_data.")
 
@@ -73,67 +102,12 @@ def main() -> None:
 
     # Register handlers
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
-    
-    # Register /task handler
     application.add_handler(CommandHandler("task", task_command))
-
-    # Register new handlers for project, reminder, obsidian
     application.add_handler(CommandHandler("project", project_command))
     application.add_handler(CommandHandler("remind", remind_command))
-    # application.add_handler(CommandHandler("obsidian", obsidian_command)) # To be added later
-
-    # Handle all other messages (optional)
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
-
-    log.info("Bot is polling...")
+    
+    # Run the bot until the user presses Ctrl-C or the process receives SIGINT, SIGTERM or SIGABRT
     application.run_polling(allowed_updates=Update.ALL_TYPES)
-
-
-# ── Basic Telegram Commands (kept here for simplicity) ────────────────────────────────
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a message when the command /start is issued."""
-    user = update.effective_user
-    if not auth_check(user.id):
-        await restricted_access(update, context)
-        return
-
-    await update.message.reply_html(
-        f"Hi {user.mention_html()}! I'm your autonomous development bot. "
-        "Send me a `/task` to generate code and open a PR.",
-    )
-    log.info(f"User {user.id} started the bot.")
-
-
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a message when the command /help is issued."""
-    user = update.effective_user
-    if not auth_check(user.id):
-        await restricted_access(update, context)
-        return
-
-    help_text = """
-I'm IgnyteDev, your autonomous development bot! Here's what I can do:
-
-*   `/task <description>`: Describe a coding task, and I'll generate the code, push a branch, and open a PR.
-*   `/project <action> [args]`: Manage projects (e.g., `create`, `list`, `get`).
-*   `/remind YYYY-MM-DD HH:MM <message>`: Set a reminder message.
-*   `/start`: Start interacting with the bot.
-*   `/help`: Show this help message.
-"""
-    await update.message.reply_text(help_text)
-    log.info(f"User {user.id} requested help.")
-
-
-async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Echo the user message."""
-    user = update.effective_user
-    if not auth_check(user.id):
-        await restricted_access(update, context)
-        return
-        
-    await update.message.reply_text(update.message.text)
 
 
 if __name__ == "__main__":
