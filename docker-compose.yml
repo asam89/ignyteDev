@@ -35,12 +35,15 @@ services:
       - ./data:/app/data
       - ./uploads:/app/uploads
       - repos_data:/repos
+      - /var/run/docker.sock:/var/run/docker.sock  # For preview deployments
     environment:
       - REPO_PATH=/repo
       - REPOS_DIR=/repos
       - TARGET_ENV=dev
       - BOT_DATA_DIR=/app/data
       - UPLOAD_DIR=/app/uploads
+      - DOCKER_NETWORK=ignyte-previews
+      - PREVIEW_BASE_PORT=9000
 
   # ── Caddy Reverse Proxy ────────────────────────
   # Provides HTTPS and routes traffic to dashboard + preview apps

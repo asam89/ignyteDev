@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% set active_page = "projects" %}
+
+{% block title %}IgnyteDev — {{ project.name }}{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 1rem;">
+    <a href="/projects" class="btn">&larr; All Projects</a>
+</div>
+
+<!-- Project Header -->
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <div>
+            <h2 style="margin-bottom: 0.25rem;">{{ project.name }}</h2>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">{{ project.description }}</div>
+        </div>
+        <span class="badge badge-{{ 'completed' if project.status == 'connected' else project.status }}">{{ project.status }}</span>
+    </div>
+
+    <div class="form-row" style="margin-bottom: 1rem;">
+        <div>
+            <label>Repository</label>
+            <p><a href="{{ project.repo_url }}" target="_blank">{{ project.repo_url }}</a></p>
+        </div>
+        <div>
+            <label>Framework</label>
+            <p>{{ project.framework }}</p>
+        </div>
+    </div>
+
+    <div class="form-row" style="margin-bottom: 1rem;">
+        <div>
+            <label>Tasks Completed</label>
+            <p>{{ project.task_count }}</p>
+        </div>
+        <div>
+            <label>Auto-Deploy</label>
+            <p>{{ 'Enabled' if project.auto_deploy else 'Disabled' }}</p>
+        </div>
+    </div>
+
+    {% if project.public_url %}
+    <div style="margin-bottom: 1rem;">
+        <label>Public URL</label>
+        <p><a href="{{ project.public_url }}" target="_blank">{{ project.public_url }}</a></p>
+    </div>
+    {% endif %}
+</div>
+
+<div class="grid-2">
+    <!-- Preview Deployment -->
+    <div class="card">
+        <h2>Preview Deployment</h2>
+
+        {% if preview_status.status == 'running' %}
+        <div style="margin-bottom: 1rem;">
+            <span class="badge badge-completed">Running</span>
+            {% if project.preview_url %}
+            <a href="{{ project.preview_url }}" target="_blank" class="btn" style="margin-left: 0.5rem;">Open Preview</a>
+            {% endif %}
+        </div>
+        <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+            Container: {{ preview_status.container_name }}
+        </div>
+        <div style="margin-bottom: 1rem;">
+            <button class="btn" hx-get="/api/projects/{{ project.id }}/logs" hx-target="#preview-logs" hx-swap="innerHTML">
+                View Logs
+            </button>
+            <form action="/api/projects/{{ project.id }}/stop-preview" method="post" style="display: inline;">
+                <button type="submit" class="btn" style="border-color: var(--danger); color: var(--danger);">Stop</button>
+            </form>
+        </div>
+        <pre id="preview-logs" style="max-height: 200px; overflow-y: auto; font-size: 0.8rem;"></pre>
+
+        {% else %}
+        <p style="color: var(--text-muted); margin-bottom: 1rem;">No preview running. Build and deploy a Docker preview of this project.</p>
+        <form action="/api/projects/{{ project.id }}/deploy-preview" method="post">
+            <button type="submit" class="btn btn-primary">Build & Deploy Preview</button>
+        </form>
+        {% endif %}
+    </div>
+
+    <!-- Submit Task for This Project -->
+    <div class="card">
+        <h2>Build a Feature</h2>
+        <form action="/api/tasks" method="post" enctype="multipart/form-data">
+            <input type="hidden" name="project_id" value="{{ project.id }}">
+            <input type="hidden" name="repo_url" value="{{ project.repo_url }}">
+
+            <div class="form-group">
+                <label for="description">What should the bot build?</label>
+                <textarea id="description" name="description" placeholder="Describe the feature, fix, or improvement..." required></textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Requirements / Attachments</label>
+                <label class="file-upload">
+                    <input type="file" name="files" multiple accept=".txt,.md,.pdf,.py,.js,.ts,.json,.yml,.yaml,.csv,.html,.css">
+                    <div class="upload-icon">+</div>
+                    <div class="upload-text">Drop files here or click to upload</div>
+                </label>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="llm_provider">LLM Provider</label>
+                    <select id="llm_provider" name="llm_provider">
+                        <option value="auto">Auto</option>
+                        {% for p in providers %}
+                        <option value="{{ p }}">{{ p | capitalize }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="priority">Priority</label>
+                    <select id="priority" name="priority">
+                        <option value="normal">Normal</option>
+                        <option value="high">High</option>
+                        <option value="low">Low</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox" name="build_preview" style="width: auto;">
+                    Rebuild preview after task completes
+                </label>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Submit Task</button>
+        </form>
+    </div>
+</div>
+
+<!-- Project Task History -->
+<div class="card" style="margin-top: 1rem;">
+    <h2>Task History</h2>
+    {% if tasks %}
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Task</th>
+                <th>Status</th>
+                <th>PR</th>
+                <th>Created</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for task in tasks %}
+            <tr>
+                <td><a href="/tasks/{{ task.id }}">{{ task.id }}</a></td>
+                <td class="task-desc">{{ task.description[:60] }}</td>
+                <td><span class="badge badge-{{ task.status }}">{{ task.status }}</span></td>
+                <td>
+                    {% if task.result and task.result.pr_url and task.result.pr_url.startswith('http') %}
+                    <a href="{{ task.result.pr_url }}" target="_blank">View PR</a>
+                    {% else %}
+                    —
+                    {% endif %}
+                </td>
+                <td>{{ task.created_at[:16] if task.created_at else '—' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <p>No tasks submitted for this project yet.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

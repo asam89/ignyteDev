@@ -111,4 +111,27 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Connected Projects -->
+{% if projects %}
+<div class="card" style="margin-top: 1.5rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h2>Connected Projects</h2>
+        <a href="/projects" class="btn">Manage Projects</a>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem;">
+        {% for project in projects %}
+        <div style="border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
+            <a href="/projects/{{ project.id }}" style="font-weight: 600;">{{ project.name }}</a>
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">{{ project.task_count }} tasks</div>
+            {% if project.preview_url %}
+            <div style="font-size: 0.8rem; margin-top: 0.5rem;">
+                <a href="{{ project.preview_url }}" target="_blank">Preview</a>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
 {% endblock %}
