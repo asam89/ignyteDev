@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% set active_page = "projects" %}
+
+{% block title %}IgnyteDev — Projects{% endblock %}
+
+{% block content %}
+<div class="grid-2">
+    <!-- Connect New Project -->
+    <div class="card">
+        <h2>Connect a Project</h2>
+        <form action="/api/projects" method="post">
+            <div class="form-group">
+                <label for="name">Project Name</label>
+                <input type="text" id="name" name="name" placeholder="my-webapp" required>
+            </div>
+
+            <div class="form-group">
+                <label for="repo_url">GitHub Repo URL</label>
+                <input type="text" id="repo_url" name="repo_url" placeholder="https://github.com/owner/repo" required>
+            </div>
+
+            <div class="form-group">
+                <label for="description">Description</label>
+                <input type="text" id="description" name="description" placeholder="What this project does...">
+            </div>
+
+            <div class="form-group">
+                <label for="public_url">Public URL (if deployed)</label>
+                <input type="text" id="public_url" name="public_url" placeholder="https://myapp.com">
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="framework">Framework</label>
+                    <select id="framework" name="framework">
+                        <option value="auto">Auto-detect</option>
+                        <option value="nextjs">Next.js</option>
+                        <option value="react">React</option>
+                        <option value="vue">Vue</option>
+                        <option value="node">Node.js</option>
+                        <option value="fastapi">FastAPI</option>
+                        <option value="flask">Flask</option>
+                        <option value="django">Django</option>
+                        <option value="static">Static HTML</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="docker_port">App Port</label>
+                    <input type="text" id="docker_port" name="docker_port" value="3000">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox" name="auto_deploy" style="width: auto;">
+                    Auto-deploy on PR merge
+                </label>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Connect Project</button>
+        </form>
+    </div>
+
+    <!-- Connected Projects List -->
+    <div class="card">
+        <h2>Connected Projects</h2>
+        {% if projects %}
+        <div hx-get="/partials/project-cards" hx-trigger="every 15s" hx-swap="innerHTML">
+            {% for project in projects %}
+            <div style="border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <a href="/projects/{{ project.id }}" style="font-weight: 600; font-size: 1rem;">{{ project.name }}</a>
+                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">
+                            {{ project.description or project.repo_url.split('/')[-1] }}
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <span class="badge badge-{{ 'completed' if project.status == 'connected' else project.status }}">{{ project.status }}</span>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
+                            {{ project.task_count }} task{{ 's' if project.task_count != 1 else '' }}
+                        </div>
+                    </div>
+                </div>
+                {% if project.preview_url %}
+                <div style="margin-top: 0.5rem; font-size: 0.85rem;">
+                    Preview: <a href="{{ project.preview_url }}" target="_blank">{{ project.preview_url }}</a>
+                </div>
+                {% endif %}
+                {% if project.public_url %}
+                <div style="margin-top: 0.25rem; font-size: 0.85rem;">
+                    Live: <a href="{{ project.public_url }}" target="_blank">{{ project.public_url }}</a>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>No projects connected yet. Link a repo to get started.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% for project in projects %}
+<div style="border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <a href="/projects/{{ project.id }}" style="font-weight: 600; font-size: 1rem;">{{ project.name }}</a>
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">
+                {{ project.description or project.repo_url.split('/')[-1] }}
+            </div>
+        </div>
+        <div style="text-align: right;">
+            <span class="badge badge-{{ 'completed' if project.status == 'connected' else project.status }}">{{ project.status }}</span>
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
+                {{ project.task_count }} task{{ 's' if project.task_count != 1 else '' }}
+            </div>
+        </div>
+    </div>
+    {% if project.preview_url %}
+    <div style="margin-top: 0.5rem; font-size: 0.85rem;">
+        Preview: <a href="{{ project.preview_url }}" target="_blank">{{ project.preview_url }}</a>
+    </div>
+    {% endif %}
+    {% if project.public_url %}
+    <div style="margin-top: 0.25rem; font-size: 0.85rem;">
+        Live: <a href="{{ project.public_url }}" target="_blank">{{ project.public_url }}</a>
+    </div>
+    {% endif %}
+</div>
+{% endfor %}
