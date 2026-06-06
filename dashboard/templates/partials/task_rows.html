@@ -1,0 +1,26 @@
+{% if tasks %}
+<table>
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Task</th>
+            <th>Status</th>
+            <th>Created</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for task in tasks %}
+        <tr>
+            <td><a href="/tasks/{{ task.id }}">{{ task.id }}</a></td>
+            <td class="task-desc">{{ task.description[:60] }}</td>
+            <td><span class="badge badge-{{ task.status }}">{{ task.status }}</span></td>
+            <td>{{ task.created_at[:16] if task.created_at else '—' }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="empty-state">
+    <p>No tasks yet. Submit one to get started.</p>
+</div>
+{% endif %}

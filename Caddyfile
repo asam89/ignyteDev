@@ -1,0 +1,13 @@
+# Caddy reverse proxy configuration
+# Replace YOUR_DOMAIN with your actual domain, or use :80 for IP-only access
+#
+# Option 1: Domain with auto-HTTPS
+#   dev.yourdomain.com {
+#       reverse_proxy dashboard:8080
+#   }
+#
+# Option 2: IP-only (no HTTPS) — uncomment below and comment out domain block
+
+:80 {
+    reverse_proxy dashboard:8080
+}

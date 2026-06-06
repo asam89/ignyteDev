@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% set active_page = "tasks" %}
+
+{% block title %}IgnyteDev — Tasks{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>All Tasks</h2>
+    <div style="margin-bottom: 1rem;">
+        <a href="/tasks" class="btn {% if not current_status %}btn-primary{% endif %}" style="margin-right: 0.25rem;">All</a>
+        <a href="/tasks?status=pending" class="btn {% if current_status == 'pending' %}btn-primary{% endif %}" style="margin-right: 0.25rem;">Pending</a>
+        <a href="/tasks?status=building" class="btn {% if current_status == 'building' %}btn-primary{% endif %}" style="margin-right: 0.25rem;">Building</a>
+        <a href="/tasks?status=completed" class="btn {% if current_status == 'completed' %}btn-primary{% endif %}" style="margin-right: 0.25rem;">Completed</a>
+        <a href="/tasks?status=error" class="btn {% if current_status == 'error' %}btn-primary{% endif %}">Errors</a>
+    </div>
+
+    {% if tasks %}
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Task</th>
+                <th>Repo</th>
+                <th>LLM</th>
+                <th>Priority</th>
+                <th>Status</th>
+                <th>Created</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for task in tasks %}
+            <tr>
+                <td><a href="/tasks/{{ task.id }}">{{ task.id }}</a></td>
+                <td class="task-desc">{{ task.description[:80] }}</td>
+                <td>{{ task.repo_url.split('/')[-1] if task.repo_url else 'default' }}</td>
+                <td>{{ task.llm_provider }}</td>
+                <td>{{ task.priority }}</td>
+                <td><span class="badge badge-{{ task.status }}">{{ task.status }}</span></td>
+                <td>{{ task.created_at[:16] if task.created_at else '—' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <p>No tasks{% if current_status %} with status "{{ current_status }}"{% endif %}.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

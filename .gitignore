@@ -5,3 +5,6 @@ __pycache__/
 repo/
 *.log
 .DS_Store
+data/
+uploads/
+repos/

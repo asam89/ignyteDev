@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}IgnyteDev Dashboard{% endblock %}</title>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #e6edf3;
+            --text-muted: #8b949e;
+            --accent: #58a6ff;
+            --accent-hover: #79c0ff;
+            --success: #3fb950;
+            --warning: #d29922;
+            --danger: #f85149;
+            --purple: #bc8cff;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 1.5rem; }
+
+        /* Nav */
+        nav {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 0;
+        }
+        nav .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        nav .brand {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--accent);
+            text-decoration: none;
+        }
+        nav .links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            margin-left: 1.5rem;
+            font-size: 0.875rem;
+        }
+        nav .links a:hover { color: var(--text); }
+        nav .links a.active { color: var(--accent); }
+
+        /* Cards */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        .card h2 {
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            color: var(--text);
+        }
+
+        /* Stats row */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+        }
+        .stat-card .number {
+            font-size: 2rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+        .stat-card .label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+        .stat-pending .number { color: var(--warning); }
+        .stat-building .number { color: var(--accent); }
+        .stat-completed .number { color: var(--success); }
+        .stat-error .number { color: var(--danger); }
+
+        /* Forms */
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        label {
+            display: block;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 0.25rem;
+        }
+        input[type="text"],
+        textarea,
+        select {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            font-size: 0.9rem;
+            font-family: inherit;
+        }
+        input[type="text"]:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        textarea { min-height: 120px; resize: vertical; }
+
+        /* File upload */
+        .file-upload {
+            border: 2px dashed var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .file-upload:hover { border-color: var(--accent); }
+        .file-upload input[type="file"] { display: none; }
+        .file-upload .upload-text { color: var(--text-muted); font-size: 0.9rem; }
+        .file-upload .upload-icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
+
+        /* Buttons */
+        .btn {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--surface);
+            color: var(--text);
+            font-size: 0.875rem;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: var(--border); }
+        .btn-primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+        .btn-primary:hover { background: var(--accent-hover); }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        /* Tables */
+        table { width: 100%; border-collapse: collapse; }
+        th, td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        th {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+        td { font-size: 0.875rem; }
+        tr:hover { background: rgba(88, 166, 255, 0.04); }
+
+        /* Status badges */
+        .badge {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .badge-pending { background: rgba(210, 153, 34, 0.15); color: var(--warning); }
+        .badge-building { background: rgba(88, 166, 255, 0.15); color: var(--accent); }
+        .badge-completed { background: rgba(63, 185, 80, 0.15); color: var(--success); }
+        .badge-error { background: rgba(248, 81, 73, 0.15); color: var(--danger); }
+        .badge-skipped { background: rgba(139, 148, 158, 0.15); color: var(--text-muted); }
+
+        /* Layout */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+        @media (max-width: 768px) {
+            .grid-2, .form-row { grid-template-columns: 1fr; }
+        }
+
+        main { padding: 1.5rem 0 3rem; }
+
+        .task-desc {
+            max-width: 400px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        a { color: var(--accent); }
+        a:hover { color: var(--accent-hover); }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--text-muted);
+        }
+
+        /* Loading indicator */
+        .htmx-indicator {
+            display: none;
+        }
+        .htmx-request .htmx-indicator {
+            display: inline;
+        }
+
+        pre {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 1rem;
+            overflow-x: auto;
+            font-size: 0.85rem;
+        }
+
+        .file-list {
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="container">
+            <a href="/" class="brand">IgnyteDev</a>
+            <div class="links">
+                <a href="/" class="{% if active_page == 'home' %}active{% endif %}">Dashboard</a>
+                <a href="/tasks" class="{% if active_page == 'tasks' %}active{% endif %}">Tasks</a>
+            </div>
+        </div>
+    </nav>
+    <main>
+        <div class="container">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+    <script>
+        // File upload label update
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileInputs = document.querySelectorAll('.file-upload input[type="file"]');
+            fileInputs.forEach(input => {
+                input.addEventListener('change', function() {
+                    const label = this.closest('.file-upload');
+                    const fileList = label.querySelector('.file-list') || document.createElement('div');
+                    fileList.className = 'file-list';
+                    fileList.textContent = Array.from(this.files).map(f => f.name).join(', ');
+                    if (!label.querySelector('.file-list')) label.appendChild(fileList);
+                });
+            });
+        });
+    </script>
+</body>
+</html>
