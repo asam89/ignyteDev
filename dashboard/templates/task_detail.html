@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% set active_page = "tasks" %}
+
+{% block title %}IgnyteDev — Task #{{ task.id }}{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 1rem;">
+    <a href="/tasks" class="btn">&larr; All Tasks</a>
+</div>
+
+<div class="card" {% if task.status == 'building' or task.status == 'pending' %}hx-get="/tasks/{{ task.id }}" hx-trigger="every 5s" hx-select=".card" hx-swap="outerHTML"{% endif %}>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h2>Task #{{ task.id }}</h2>
+        <span class="badge badge-{{ task.status }}">{{ task.status }}</span>
+    </div>
+
+    <div class="form-group">
+        <label>Description</label>
+        <p>{{ task.description }}</p>
+    </div>
+
+    <div class="form-row" style="margin-bottom: 1rem;">
+        <div>
+            <label>Repo</label>
+            <p>{{ task.repo_url if task.repo_url else 'Default repo' }}</p>
+        </div>
+        <div>
+            <label>LLM Provider</label>
+            <p>{{ task.llm_provider }}</p>
+        </div>
+    </div>
+
+    <div class="form-row" style="margin-bottom: 1rem;">
+        <div>
+            <label>Priority</label>
+            <p>{{ task.priority }}</p>
+        </div>
+        <div>
+            <label>Created</label>
+            <p>{{ task.created_at[:19] if task.created_at else '—' }}</p>
+        </div>
+    </div>
+
+    {% if task.started_at %}
+    <div class="form-row" style="margin-bottom: 1rem;">
+        <div>
+            <label>Started</label>
+            <p>{{ task.started_at[:19] }}</p>
+        </div>
+        <div>
+            <label>Completed</label>
+            <p>{{ task.completed_at[:19] if task.completed_at else '—' }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if task.attachment_texts %}
+    <div class="form-group">
+        <label>Attachments</label>
+        <p>{{ task.attachment_texts | length }} file(s) uploaded</p>
+    </div>
+    {% endif %}
+
+    {% if task.result %}
+    <div class="form-group">
+        <label>Result</label>
+        <pre>{{ task.result | tojson(indent=2) }}</pre>
+    </div>
+
+    {% if task.result.pr_url and task.result.pr_url.startswith('http') %}
+    <a href="{{ task.result.pr_url }}" target="_blank" class="btn btn-primary" style="margin-top: 0.5rem;">
+        View Pull Request
+    </a>
+    {% endif %}
+    {% endif %}
+</div>
+{% endblock %}

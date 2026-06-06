@@ -1,0 +1,19 @@
+<div class="stats-row"
+     hx-get="/partials/stats" hx-trigger="every 10s" hx-swap="outerHTML">
+    <div class="stat-card stat-pending">
+        <div class="number">{{ stats.pending }}</div>
+        <div class="label">Pending</div>
+    </div>
+    <div class="stat-card stat-building">
+        <div class="number">{{ stats.building }}</div>
+        <div class="label">Building</div>
+    </div>
+    <div class="stat-card stat-completed">
+        <div class="number">{{ stats.completed }}</div>
+        <div class="label">Completed</div>
+    </div>
+    <div class="stat-card stat-error">
+        <div class="number">{{ stats.error }}</div>
+        <div class="label">Errors</div>
+    </div>
+</div>

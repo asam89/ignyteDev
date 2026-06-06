@@ -17,9 +17,15 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY bot/ ./bot/
+COPY dashboard/ ./dashboard/
+
+# Create directories
+RUN mkdir -p /app/data /app/uploads /repos
 
 # Git identity for the bot
 RUN git config --global user.email "bot@ignyteconsulting.com" \
     && git config --global user.name "IgnyteDev Bot"
+
+EXPOSE 8080
 
 CMD ["python", "bot/worker_node.py"]

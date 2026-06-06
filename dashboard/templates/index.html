@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% set active_page = "home" %}
+
+{% block title %}IgnyteDev — Dashboard{% endblock %}
+
+{% block content %}
+<!-- Stats -->
+<div class="stats-row"
+     hx-get="/partials/stats" hx-trigger="every 10s" hx-swap="outerHTML">
+    <div class="stat-card stat-pending">
+        <div class="number">{{ stats.pending }}</div>
+        <div class="label">Pending</div>
+    </div>
+    <div class="stat-card stat-building">
+        <div class="number">{{ stats.building }}</div>
+        <div class="label">Building</div>
+    </div>
+    <div class="stat-card stat-completed">
+        <div class="number">{{ stats.completed }}</div>
+        <div class="label">Completed</div>
+    </div>
+    <div class="stat-card stat-error">
+        <div class="number">{{ stats.error }}</div>
+        <div class="label">Errors</div>
+    </div>
+</div>
+
+<div class="grid-2">
+    <!-- New Task Form -->
+    <div class="card">
+        <h2>New Task</h2>
+        <form action="/api/tasks" method="post" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="description">Task Description</label>
+                <textarea id="description" name="description" placeholder="Describe the feature or fix you want built..." required></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="repo_url">Target Repo (optional — leave empty for default)</label>
+                <input type="text" id="repo_url" name="repo_url" placeholder="https://github.com/owner/repo">
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="llm_provider">LLM Provider</label>
+                    <select id="llm_provider" name="llm_provider">
+                        <option value="auto">Auto (best available)</option>
+                        {% for p in providers %}
+                        <option value="{{ p }}">{{ p | capitalize }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="priority">Priority</label>
+                    <select id="priority" name="priority">
+                        <option value="normal">Normal</option>
+                        <option value="high">High</option>
+                        <option value="low">Low</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Requirements / Attachments</label>
+                <label class="file-upload">
+                    <input type="file" name="files" multiple accept=".txt,.md,.pdf,.py,.js,.ts,.json,.yml,.yaml,.csv,.html,.css">
+                    <div class="upload-icon">+</div>
+                    <div class="upload-text">Drop files here or click to upload<br><small>PDF, Markdown, code files, etc.</small></div>
+                </label>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Submit Task</button>
+        </form>
+    </div>
+
+    <!-- Recent Tasks -->
+    <div class="card">
+        <h2>Recent Tasks</h2>
+        <div hx-get="/partials/task-rows" hx-trigger="every 10s" hx-swap="innerHTML">
+            {% if tasks %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Task</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for task in tasks %}
+                    <tr>
+                        <td><a href="/tasks/{{ task.id }}">{{ task.id }}</a></td>
+                        <td class="task-desc">{{ task.description[:60] }}</td>
+                        <td><span class="badge badge-{{ task.status }}">{{ task.status }}</span></td>
+                        <td>{{ task.created_at[:16] if task.created_at else '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state">
+                <p>No tasks yet. Submit one to get started.</p>
+            </div>
+            {% endif %}
+        </div>
+        {% if tasks %}
+        <div style="margin-top: 1rem;">
+            <a href="/tasks" class="btn">View All Tasks</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

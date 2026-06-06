@@ -1,7 +1,14 @@
-# Root-level requirements (mirrors bot/requirements.txt)
+# Root-level requirements
 python-telegram-bot==21.7
 google-generativeai>=0.8.0
+anthropic>=0.40.0
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+python-multipart>=0.0.12
+jinja2>=3.1.4
+aiofiles>=24.1.0
 flake8
 pytest
-APScheduler>=3.10.4 # For scheduling reminders
-tinydb>=4.8.0 # For simple project and reminder persistence
+APScheduler>=3.10.4
+tinydb>=4.8.0
+python-dotenv>=1.0.0

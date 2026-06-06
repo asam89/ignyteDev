@@ -1,15 +1,64 @@
 services:
+  # ── Telegram Bot ────────────────────────────────
   dev-node:
     build: .
     container_name: ignyte-dev-node
     restart: unless-stopped
     env_file: .env
     volumes:
-      - ./repo:/repo  # Mount the target repo here
-      - ./data:/app/data # Mount bot's data directory
-      # - /path/on/host/to/your/ObsidianVault:/obsidian_vault # Uncomment and adjust for Obsidian integration
+      - ./repo:/repo
+      - ./data:/app/data
+      - repos_data:/repos
     environment:
       - REPO_PATH=/repo
+      - REPOS_DIR=/repos
       - TARGET_ENV=dev
       - BOT_DATA_DIR=/app/data
-      # - OBSIDIAN_VAULT_PATH=/obsidian_vault # Uncomment for Obsidian
+    depends_on:
+      - dashboard
+
+  # ── Web Dashboard ───────────────────────────────
+  dashboard:
+    build: .
+    container_name: ignyte-dashboard
+    restart: unless-stopped
+    env_file: .env
+    command: >
+      uvicorn dashboard.app:app
+      --host 0.0.0.0
+      --port 8080
+      --reload
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./repo:/repo
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+      - repos_data:/repos
+    environment:
+      - REPO_PATH=/repo
+      - REPOS_DIR=/repos
+      - TARGET_ENV=dev
+      - BOT_DATA_DIR=/app/data
+      - UPLOAD_DIR=/app/uploads
+
+  # ── Caddy Reverse Proxy ────────────────────────
+  # Provides HTTPS and routes traffic to dashboard + preview apps
+  caddy:
+    image: caddy:2-alpine
+    container_name: ignyte-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - dashboard
+
+volumes:
+  repos_data:
+  caddy_data:
+  caddy_config:
