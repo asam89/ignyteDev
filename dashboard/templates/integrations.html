@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% set active_page = "integrations" %}
+
+{% block title %}IgnyteDev — Integrations{% endblock %}
+
+{% block content %}
+<div class="grid-2">
+    <!-- Jira -->
+    <div class="card">
+        <h2>Jira</h2>
+        {% set jira = integrations | selectattr("provider", "equalto", "jira") | first %}
+        {% if jira is defined and jira %}
+        <div style="margin-bottom: 1rem;">
+            <span class="badge badge-completed">Connected</span>
+            <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 0.5rem;">
+                {{ jira.config.base_url }}
+            </span>
+        </div>
+        <form action="/api/integrations/jira/import" method="post">
+            <div class="form-group">
+                <label for="jira_project_key">Project Key</label>
+                <input type="text" id="jira_project_key" name="project_key" placeholder="PROJ" required>
+            </div>
+            <div class="form-group">
+                <label for="jira_repo_url">Target Repo URL (for generated PRs)</label>
+                <input type="text" id="jira_repo_url" name="repo_url" placeholder="https://github.com/owner/repo">
+            </div>
+            <button type="submit" class="btn btn-primary">Import Issues</button>
+            <button type="button" class="btn" style="margin-left: 0.5rem;"
+                onclick="fetch('/api/integrations/jira', {method:'DELETE'}).then(()=>location.reload())">
+                Disconnect
+            </button>
+        </form>
+        {% else %}
+        <p style="color: var(--text-muted); margin-bottom: 1rem;">
+            Connect to Jira Cloud to import issues as development tasks.
+        </p>
+        <form action="/api/integrations/jira" method="post">
+            <div class="form-group">
+                <label for="jira_url">Jira Base URL</label>
+                <input type="text" id="jira_url" name="base_url" placeholder="https://yourcompany.atlassian.net" required>
+            </div>
+            <div class="form-group">
+                <label for="jira_email">Email</label>
+                <input type="text" id="jira_email" name="email" placeholder="you@company.com" required>
+            </div>
+            <div class="form-group">
+                <label for="jira_token">API Token</label>
+                <input type="text" id="jira_token" name="api_token"
+                    placeholder="Create at id.atlassian.com/manage-profile/security/api-tokens" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Connect Jira</button>
+        </form>
+        {% endif %}
+    </div>
+
+    <!-- Azure DevOps -->
+    <div class="card">
+        <h2>Azure DevOps</h2>
+        {% set ado = integrations | selectattr("provider", "equalto", "azure_devops") | first %}
+        {% if ado is defined and ado %}
+        <div style="margin-bottom: 1rem;">
+            <span class="badge badge-completed">Connected</span>
+            <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 0.5rem;">
+                {{ ado.config.project }}
+            </span>
+        </div>
+        <form action="/api/integrations/azure_devops/import" method="post">
+            <div class="form-group">
+                <label for="ado_repo_url">Target Repo URL (for generated PRs)</label>
+                <input type="text" id="ado_repo_url" name="repo_url" placeholder="https://github.com/owner/repo">
+            </div>
+            <button type="submit" class="btn btn-primary">Import Work Items</button>
+            <button type="button" class="btn" style="margin-left: 0.5rem;"
+                onclick="fetch('/api/integrations/azure_devops', {method:'DELETE'}).then(()=>location.reload())">
+                Disconnect
+            </button>
+        </form>
+        {% else %}
+        <p style="color: var(--text-muted); margin-bottom: 1rem;">
+            Connect to Azure DevOps to import work items as development tasks.
+        </p>
+        <form action="/api/integrations/azure_devops" method="post">
+            <div class="form-group">
+                <label for="ado_url">Organization URL</label>
+                <input type="text" id="ado_url" name="org_url" placeholder="https://dev.azure.com/yourorg" required>
+            </div>
+            <div class="form-group">
+                <label for="ado_project">Project Name</label>
+                <input type="text" id="ado_project" name="project" placeholder="MyProject" required>
+            </div>
+            <div class="form-group">
+                <label for="ado_pat">Personal Access Token</label>
+                <input type="text" id="ado_pat" name="pat"
+                    placeholder="Create at dev.azure.com → User Settings → PATs" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Connect Azure DevOps</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

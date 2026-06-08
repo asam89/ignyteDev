@@ -28,7 +28,13 @@ class TaskQueue:
         repo_url: str = "",
         llm_provider: str = "auto",
         attachment_texts: list[str] | None = None,
+        attachment_images: list[dict] | None = None,
         priority: str = "normal",
+        backlog_id: int | None = None,
+        source: str = "manual",
+        source_key: str = "",
+        source_url: str = "",
+        depends_on: list[int] | None = None,
     ) -> int:
         """Add a task to the queue. Returns the task doc_id."""
         task = {
@@ -36,9 +42,15 @@ class TaskQueue:
             "repo_url": repo_url,
             "llm_provider": llm_provider,
             "attachment_texts": attachment_texts or [],
+            "attachment_images": attachment_images or [],
             "priority": priority,
             "status": "pending",
             "result": None,
+            "backlog_id": backlog_id,
+            "source": source,
+            "source_key": source_key,
+            "source_url": source_url,
+            "depends_on": depends_on or [],
             "created_at": datetime.now().isoformat(),
             "started_at": None,
             "completed_at": None,
@@ -87,7 +99,27 @@ class TaskQueue:
             t.get("created_at", ""),
         ))
 
-        task = pending[0]
+        # Find first task whose dependencies are all completed
+        task = None
+        for candidate in pending:
+            deps = candidate.get("depends_on", [])
+            if not deps:
+                task = candidate
+                break
+            # Check all deps are completed
+            all_done = True
+            for dep_id in deps:
+                dep = self.get_task(dep_id)
+                if not dep or dep.get("status") not in ("completed", "skipped"):
+                    all_done = False
+                    break
+            if all_done:
+                task = candidate
+                break
+
+        if not task:
+            return  # All pending tasks have unmet dependencies
+
         doc_id = task.doc_id
 
         self.update_task(
@@ -102,6 +134,7 @@ class TaskQueue:
                 repo_url=task.get("repo_url", ""),
                 llm_provider=task.get("llm_provider", "auto"),
                 attachment_texts=task.get("attachment_texts"),
+                attachment_images=task.get("attachment_images"),
             )
             self.update_task(
                 doc_id,

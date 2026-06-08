@@ -65,6 +65,7 @@ class TaskProcessor:
         repo_url: str = "",
         llm_provider: str = "auto",
         attachment_texts: list[str] | None = None,
+        attachment_images: list[dict] | None = None,
     ) -> dict:
         """
         Process a task: generate code, commit, push, and open a PR.
@@ -103,6 +104,7 @@ class TaskProcessor:
                 system=self._system_prompt(),
                 provider=llm_provider,
                 max_tokens=4096,
+                images=attachment_images,
             )
             json_response = raw_response.strip().lstrip("```json").lstrip("```").rstrip("```")
             changes = json.loads(json_response)
