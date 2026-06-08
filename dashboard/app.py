@@ -21,7 +21,12 @@ from bot.core.task_processor import TaskProcessor
 from bot.core.task_queue import TaskQueue
 from bot.core.project_registry import ProjectRegistry
 from bot.core.preview_deployer import PreviewDeployer
-from bot.core.llm import available_providers
+from bot.core.llm import available_providers, image_to_mime
+from bot.core.document_parser import extract_text, is_image
+from bot.core.requirements_decomposer import decompose_requirements
+from bot.core.integrations import (
+    IntegrationRegistry, import_jira_issues, import_ado_items,
+)
 
 load_dotenv()
 
@@ -54,6 +59,7 @@ task_processor = TaskProcessor(REPO_PATH, GH_TOKEN, TARGET_ENV)
 task_queue.set_processor(task_processor)
 project_registry = ProjectRegistry(DATA_DIR)
 preview_deployer = PreviewDeployer()
+integration_registry = IntegrationRegistry(DATA_DIR)
 
 
 @app.on_event("startup")
@@ -154,6 +160,7 @@ async def create_task(
 ):
     """Create a new task from the web form."""
     attachment_texts = []
+    attachment_images = []
 
     for uploaded_file in files:
         if uploaded_file.filename:
@@ -162,9 +169,16 @@ async def create_task(
             save_path = UPLOAD_DIR / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uploaded_file.filename}"
             save_path.write_bytes(content)
 
-            text = _extract_text(content, uploaded_file.filename)
-            if text:
-                attachment_texts.append(f"[File: {uploaded_file.filename}]\n{text}")
+            if is_image(uploaded_file.filename):
+                attachment_images.append({
+                    "data": content,
+                    "mime_type": image_to_mime(uploaded_file.filename),
+                    "filename": uploaded_file.filename,
+                })
+            else:
+                text = extract_text(content, uploaded_file.filename)
+                if text:
+                    attachment_texts.append(f"[File: {uploaded_file.filename}]\n{text}")
 
     # If project_id given, use the project's repo_url
     if project_id:
@@ -178,6 +192,7 @@ async def create_task(
         repo_url=repo_url,
         llm_provider=llm_provider,
         attachment_texts=attachment_texts,
+        attachment_images=attachment_images,
         priority=priority,
     )
 
@@ -283,6 +298,193 @@ async def preview_logs(project_id: int):
     return {"logs": logs}
 
 
+# ── Requirements / Vision Builder ────────────────────────
+
+@app.get("/requirements", response_class=HTMLResponse)
+async def requirements_page(request: Request):
+    projects = project_registry.list_projects()
+    providers = available_providers()
+    return templates.TemplateResponse("requirements.html", {
+        "request": request,
+        "projects": projects,
+        "providers": providers,
+    })
+
+
+@app.post("/api/requirements/decompose")
+async def decompose_requirements_endpoint(
+    description: str = Form(""),
+    repo_url: str = Form(""),
+    project_id: str = Form(""),
+    llm_provider: str = Form("auto"),
+    files: list[UploadFile] = File(default=[]),
+):
+    """Decompose uploaded requirements into a task backlog."""
+    texts = []
+    images = []
+
+    for uploaded_file in files:
+        if uploaded_file.filename:
+            content = await uploaded_file.read()
+
+            save_path = UPLOAD_DIR / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uploaded_file.filename}"
+            save_path.write_bytes(content)
+
+            if is_image(uploaded_file.filename):
+                images.append({
+                    "data": content,
+                    "mime_type": image_to_mime(uploaded_file.filename),
+                    "filename": uploaded_file.filename,
+                })
+            else:
+                text = extract_text(content, uploaded_file.filename)
+                if text:
+                    texts.append(f"[File: {uploaded_file.filename}]\n{text}")
+
+    requirements_text = description
+    if texts:
+        requirements_text += "\n\n--- Uploaded Documents ---\n" + "\n\n".join(texts)
+
+    # Add project context if specified
+    extra_context = ""
+    if project_id:
+        project = project_registry.get_project_by_id(int(project_id))
+        if project:
+            repo_url = project["repo_url"]
+            extra_context = f"Target project: {project['name']} ({repo_url})"
+            if project.get("framework"):
+                extra_context += f"\nFramework: {project['framework']}"
+
+    result = decompose_requirements(
+        requirements_text=requirements_text,
+        extra_context=extra_context,
+        llm_provider=llm_provider,
+        images=images if images else None,
+    )
+
+    return result
+
+
+@app.post("/api/requirements/queue-backlog")
+async def queue_backlog(
+    request: Request,
+):
+    """Queue an entire backlog of tasks from decomposed requirements."""
+    body = await request.json()
+    tasks = body.get("tasks", [])
+    repo_url = body.get("repo_url", "")
+    project_id = body.get("project_id", "")
+    llm_provider = body.get("llm_provider", "auto")
+    images_data = body.get("images", [])  # base64-encoded images from client
+
+    if project_id:
+        project = project_registry.get_project_by_id(int(project_id))
+        if project:
+            repo_url = project["repo_url"]
+
+    created_ids = []
+    for i, task in enumerate(tasks):
+        # Map depends_on indices to actual task IDs
+        depends_on = []
+        for dep_idx in task.get("depends_on", []):
+            if dep_idx < len(created_ids):
+                depends_on.append(created_ids[dep_idx])
+
+        doc_id = task_queue.add_task(
+            description=f"{task.get('title', f'Task {i+1}')}: {task.get('description', '')}",
+            repo_url=repo_url,
+            llm_provider=llm_provider,
+            priority=task.get("priority", "normal"),
+            depends_on=depends_on,
+            source="requirements",
+        )
+        created_ids.append(doc_id)
+
+    return {"queued": len(created_ids), "task_ids": created_ids}
+
+
+# ── Integrations ─────────────────────────────────────────
+
+@app.get("/integrations", response_class=HTMLResponse)
+async def integrations_page(request: Request):
+    integrations = integration_registry.list_integrations()
+    return templates.TemplateResponse("integrations.html", {
+        "request": request,
+        "integrations": integrations,
+    })
+
+
+@app.post("/api/integrations/jira")
+async def save_jira_integration(
+    base_url: str = Form(...),
+    email: str = Form(...),
+    api_token: str = Form(...),
+):
+    integration_registry.save_integration("jira", {
+        "base_url": base_url,
+        "email": email,
+        "api_token": api_token,
+    })
+    return RedirectResponse(url="/integrations", status_code=303)
+
+
+@app.post("/api/integrations/azure_devops")
+async def save_ado_integration(
+    org_url: str = Form(...),
+    project: str = Form(...),
+    pat: str = Form(...),
+):
+    integration_registry.save_integration("azure_devops", {
+        "org_url": org_url,
+        "project": project,
+        "pat": pat,
+    })
+    return RedirectResponse(url="/integrations", status_code=303)
+
+
+@app.post("/api/integrations/{provider}/import")
+async def import_from_integration(
+    provider: str,
+    project_key: str = Form(""),
+    repo_url: str = Form(""),
+    llm_provider: str = Form("auto"),
+):
+    """Import work items from Jira or Azure DevOps into the task queue."""
+    integration = integration_registry.get_integration(provider)
+    if not integration:
+        return HTMLResponse(f"<h2>{provider} not configured</h2>", status_code=400)
+
+    config = integration["config"]
+
+    if provider == "jira":
+        items = import_jira_issues(config, project_key)
+    elif provider == "azure_devops":
+        items = import_ado_items(config)
+    else:
+        return HTMLResponse(f"<h2>Unknown provider: {provider}</h2>", status_code=400)
+
+    created_ids = []
+    for item in items:
+        doc_id = task_queue.add_task(
+            description=item["description"],
+            repo_url=repo_url,
+            llm_provider=llm_provider,
+            priority=item.get("priority", "normal"),
+            source=item.get("source", provider),
+            source_key=item.get("source_key", ""),
+            source_url=item.get("source_url", ""),
+        )
+        created_ids.append(doc_id)
+
+    return RedirectResponse(url="/tasks", status_code=303)
+
+
+@app.delete("/api/integrations/{provider}")
+async def delete_integration(provider: str):
+    integration_registry.delete_integration(provider)
+    return {"status": "deleted"}
+
+
 # ── HTMX Partials ────────────────────────────────────────
 
 @app.get("/partials/task-rows", response_class=HTMLResponse)
@@ -312,24 +514,4 @@ async def project_cards_partial(request: Request):
     })
 
 
-# ── Helpers ──────────────────────────────────────────────
 
-def _extract_text(content: bytes, filename: str) -> str:
-    """Extract readable text from uploaded file."""
-    lower = filename.lower()
-
-    if lower.endswith((".txt", ".md", ".markdown", ".rst", ".csv")):
-        return content.decode("utf-8", errors="replace")
-
-    if lower.endswith((".py", ".js", ".ts", ".html", ".css", ".yml", ".yaml", ".json", ".sh", ".toml")):
-        return content.decode("utf-8", errors="replace")
-
-    if lower.endswith(".pdf"):
-        try:
-            text = content.decode("latin-1", errors="replace")
-            readable = "".join(c for c in text if c.isprintable() or c in "\n\r\t")
-            return readable[:5000] if readable.strip() else "(PDF — could not extract text)"
-        except Exception:
-            return "(PDF — could not extract text)"
-
-    return f"(Binary file: {filename})"

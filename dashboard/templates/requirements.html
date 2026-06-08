@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% set active_page = "requirements" %}
+
+{% block title %}IgnyteDev — Requirements{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>Vision Builder</h2>
+    <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+        Upload mockups, colour palettes, requirement docs, or describe your vision.
+        The AI will analyze everything and break it into an ordered backlog of tasks.
+    </p>
+
+    <form id="requirements-form" enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="description">Describe Your Vision</label>
+            <textarea id="description" name="description" rows="5"
+                placeholder="Describe what you want to build. E.g.: 'Build a landing page for Baseera therapy practice matching the uploaded mockup. Use the colour palette provided. Include contact form, services section, and testimonials.'"></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>Upload Requirements (mockups, colour palettes, PDFs, docs)</label>
+            <label class="file-upload" id="req-upload">
+                <input type="file" name="files" multiple
+                    accept=".txt,.md,.pdf,.docx,.py,.js,.ts,.json,.yml,.yaml,.csv,.html,.css,.png,.jpg,.jpeg,.gif,.webp,.svg">
+                <div class="upload-icon">+</div>
+                <div class="upload-text">
+                    Drop files here or click to upload<br>
+                    <small>Images (mockups, palettes), PDFs, Word docs, code files</small>
+                </div>
+            </label>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="project_id">Target Project (optional)</label>
+                <select id="project_id" name="project_id">
+                    <option value="">— No project —</option>
+                    {% for p in projects %}
+                    <option value="{{ p.id }}">{{ p.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="repo_url">Or paste a Repo URL</label>
+                <input type="text" id="repo_url" name="repo_url" placeholder="https://github.com/owner/repo">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="llm_provider">LLM Provider</label>
+            <select id="llm_provider" name="llm_provider">
+                <option value="auto">Auto (best available)</option>
+                {% for p in providers %}
+                <option value="{{ p }}">{{ p | capitalize }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <button type="button" class="btn btn-primary" id="decompose-btn" onclick="decomposeRequirements()">
+            Analyze & Decompose
+        </button>
+        <span id="decompose-status" style="margin-left: 1rem; color: var(--text-muted);"></span>
+    </form>
+</div>
+
+<!-- Results -->
+<div id="backlog-results" style="display: none; margin-top: 1.5rem;">
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h2>Generated Backlog</h2>
+            <button class="btn btn-primary" onclick="queueAllTasks()">Queue All Tasks</button>
+        </div>
+
+        <div id="project-summary" style="color: var(--text-muted); margin-bottom: 1rem;"></div>
+        <div id="tech-recommendations" style="color: var(--purple); font-size: 0.85rem; margin-bottom: 1.5rem;"></div>
+
+        <div id="task-backlog"></div>
+    </div>
+</div>
+
+<script>
+let decomposedResult = null;
+
+async function decomposeRequirements() {
+    const btn = document.getElementById('decompose-btn');
+    const status = document.getElementById('decompose-status');
+    btn.disabled = true;
+    status.textContent = 'Analyzing requirements...';
+
+    const form = document.getElementById('requirements-form');
+    const formData = new FormData(form);
+
+    try {
+        const resp = await fetch('/api/requirements/decompose', {
+            method: 'POST',
+            body: formData,
+        });
+        const data = await resp.json();
+        decomposedResult = data;
+
+        if (data.error) {
+            status.textContent = 'Error: ' + data.error;
+            status.style.color = 'var(--danger)';
+            btn.disabled = false;
+            return;
+        }
+
+        // Render results
+        document.getElementById('backlog-results').style.display = 'block';
+        document.getElementById('project-summary').textContent = data.project_summary || '';
+        document.getElementById('tech-recommendations').textContent =
+            data.tech_recommendations ? 'Recommended: ' + data.tech_recommendations : '';
+
+        const container = document.getElementById('task-backlog');
+        container.innerHTML = '';
+
+        const categoryColors = {
+            'setup': 'var(--purple)',
+            'frontend': 'var(--accent)',
+            'backend': 'var(--success)',
+            'design': 'var(--warning)',
+            'integration': '#f0883e',
+            'testing': 'var(--text-muted)',
+        };
+
+        data.tasks.forEach((task, i) => {
+            const div = document.createElement('div');
+            div.style.cssText = 'border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem;';
+            const catColor = categoryColors[task.category] || 'var(--text-muted)';
+            const deps = task.depends_on.length > 0
+                ? '<span style="font-size: 0.75rem; color: var(--text-muted);"> depends on: ' +
+                  task.depends_on.map(d => '#' + (d + 1)).join(', ') + '</span>'
+                : '';
+            div.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <div style="flex: 1;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                            <input type="checkbox" checked data-task-idx="${i}" style="width: auto;">
+                            <span style="font-weight: 600;">#${i + 1} ${task.title}</span>
+                            <span class="badge" style="background: ${catColor}20; color: ${catColor};">${task.category}</span>
+                            <span class="badge badge-${task.priority === 'high' ? 'pending' : task.priority === 'low' ? 'skipped' : 'building'}">${task.priority}</span>
+                            ${deps}
+                        </div>
+                        <div style="font-size: 0.85rem; color: var(--text-muted); padding-left: 1.5rem;">${task.description}</div>
+                    </div>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+
+        status.textContent = `Found ${data.tasks.length} tasks`;
+        status.style.color = 'var(--success)';
+    } catch (e) {
+        status.textContent = 'Failed: ' + e.message;
+        status.style.color = 'var(--danger)';
+    }
+    btn.disabled = false;
+}
+
+async function queueAllTasks() {
+    if (!decomposedResult || !decomposedResult.tasks) return;
+
+    // Get checked tasks
+    const checkboxes = document.querySelectorAll('#task-backlog input[type="checkbox"]');
+    const selectedTasks = [];
+    checkboxes.forEach(cb => {
+        if (cb.checked) {
+            selectedTasks.push(decomposedResult.tasks[parseInt(cb.dataset.taskIdx)]);
+        }
+    });
+
+    if (selectedTasks.length === 0) {
+        alert('No tasks selected');
+        return;
+    }
+
+    const body = {
+        tasks: selectedTasks,
+        repo_url: document.getElementById('repo_url').value,
+        project_id: document.getElementById('project_id').value,
+        llm_provider: document.getElementById('llm_provider').value,
+    };
+
+    try {
+        const resp = await fetch('/api/requirements/queue-backlog', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body),
+        });
+        const data = await resp.json();
+        window.location.href = '/tasks';
+    } catch (e) {
+        alert('Failed to queue tasks: ' + e.message);
+    }
+}
+</script>
+{% endblock %}

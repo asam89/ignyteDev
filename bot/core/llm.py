@@ -1,10 +1,14 @@
 """
 Dual LLM wrapper — supports both Claude (Anthropic) and Gemini (Google).
 Selects provider based on config; falls back to the other if one fails.
+
+Supports vision (image inputs) for both providers.
 """
 
 import os
+import base64
 import logging
+import mimetypes
 
 import anthropic
 import google.generativeai as genai
@@ -44,11 +48,13 @@ def call_llm(
     system: str = "",
     provider: str = "auto",
     max_tokens: int = 4096,
+    images: list[dict] | None = None,
 ) -> str:
     """
     Call an LLM and return the response text.
 
     provider: "claude", "gemini", or "auto" (tries claude first, then gemini).
+    images: optional list of {"data": bytes, "mime_type": str} for vision inputs.
     """
     if provider == "auto":
         providers = []
@@ -65,9 +71,9 @@ def call_llm(
     for p in providers:
         try:
             if p == "claude":
-                return _call_claude(prompt, system, max_tokens)
+                return _call_claude(prompt, system, max_tokens, images)
             elif p == "gemini":
-                return _call_gemini(prompt, system, max_tokens)
+                return _call_gemini(prompt, system, max_tokens, images)
             else:
                 raise ValueError(f"Unknown LLM provider: {p}")
         except Exception as e:
@@ -78,15 +84,32 @@ def call_llm(
     raise RuntimeError(f"All LLM providers failed. Last error: {last_error}")
 
 
-def _call_claude(prompt: str, system: str, max_tokens: int) -> str:
+def _call_claude(
+    prompt: str, system: str, max_tokens: int,
+    images: list[dict] | None = None,
+) -> str:
     client = _get_claude()
     if not client:
         raise ValueError("Claude not configured (missing ANTHROPIC_API_KEY)")
 
+    # Build content blocks — text + optional images
+    content = []
+    if images:
+        for img in images:
+            content.append({
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": img["mime_type"],
+                    "data": base64.b64encode(img["data"]).decode("utf-8"),
+                },
+            })
+    content.append({"type": "text", "text": prompt})
+
     kwargs = {
         "model": "claude-sonnet-4-20250514",
         "max_tokens": max_tokens,
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": [{"role": "user", "content": content}],
     }
     if system:
         kwargs["system"] = system
@@ -95,17 +118,39 @@ def _call_claude(prompt: str, system: str, max_tokens: int) -> str:
     return message.content[0].text.strip()
 
 
-def _call_gemini(prompt: str, system: str, max_tokens: int) -> str:
+def _call_gemini(
+    prompt: str, system: str, max_tokens: int,
+    images: list[dict] | None = None,
+) -> str:
     model = _get_gemini()
     if not model:
         raise ValueError("Gemini not configured (missing GEMINI_API_KEY)")
 
     full_prompt = f"{system}\n\n{prompt}" if system else prompt
+
+    # Build parts — images + text
+    parts = []
+    if images:
+        for img in images:
+            parts.append({
+                "inline_data": {
+                    "mime_type": img["mime_type"],
+                    "data": base64.b64encode(img["data"]).decode("utf-8"),
+                },
+            })
+    parts.append(full_prompt)
+
     response = model.generate_content(
-        full_prompt,
+        parts,
         generation_config={"max_output_tokens": max_tokens},
     )
     return response.text.strip()
+
+
+def image_to_mime(filename: str) -> str:
+    """Get MIME type for an image file."""
+    mime, _ = mimetypes.guess_type(filename)
+    return mime or "image/png"
 
 
 def available_providers() -> list[str]:
